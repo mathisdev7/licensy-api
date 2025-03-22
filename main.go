@@ -51,7 +51,7 @@ func main() {
 		}
 		return c.JSON(fiber.Map{"roles": roles})
 	})
-	app.Get("/api/guilds/:guildID/roles", func(c *fiber.Ctx) error {
+	app.Get("/api/guilds/:guildID/roles/find", func(c *fiber.Ctx) error {
 		guildID := c.Params("guildID")
 		userID := c.Query("userID")
 		roleID := c.Query("roleID")
