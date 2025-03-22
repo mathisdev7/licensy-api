@@ -18,13 +18,50 @@ type Guild struct {
 	Permissions string  `json:"permissions"`
 }
 
-type Role struct {
-	ID       string `json:"id"`
-	Position int    `json:"position"`
+type RoleColors struct {
+	PrimaryColor   int    `json:"primary_color"`
+	SecondaryColor *int   `json:"secondary_color"`
+	TertiaryColor  *int   `json:"tertiary_color"`
 }
 
-func IsRoleGreaterThan(accessToken, guildID, userID, roleID string) (bool, error) {
-	userRoles, err := GetUserRolesInGuild(accessToken, guildID, userID)
+type Role struct {
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Description *string     `json:"description"`
+	Permissions string      `json:"permissions"`
+	Position    int         `json:"position"`
+	Color       int         `json:"color"`
+	Colors      RoleColors  `json:"colors"`
+	Hoist       bool        `json:"hoist"`
+	Managed     bool        `json:"managed"`
+	Mentionable bool        `json:"mentionable"`
+	Icon        *string     `json:"icon"`
+	UniEmoji    *string     `json:"unicode_emoji"`
+	Flags       int         `json:"flags"`
+}
+
+func CheckOauth2Token(accessToken string) error {
+	req, err := http.NewRequest("GET", "https://discord.com/api/v10/users/@me", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fiber.NewError(resp.StatusCode, "Failed to verify OAuth2 token")
+	}
+
+	return nil
+}
+
+func IsRoleGreaterThan(userToken, accessToken, guildID, userID, roleID string) (bool, error) {
+	userRoles, err := GetUserRolesInGuild(userToken, accessToken, guildID, userID)
 	if err != nil {
 		return false, err
 	}
@@ -47,12 +84,46 @@ func IsRoleGreaterThan(accessToken, guildID, userID, roleID string) (bool, error
 	return false, nil
 }
 
-func GetUserRolesInGuild(accessToken, guildID, userID string) ([]Role, error) {
-	req, err := http.NewRequest("GET", "https://discord.com/api/v10/guilds/"+guildID+"/members/"+userID, nil)
+func GetAllRolesInGuild(userToken, accessToken, guildID string) ([]Role, error) {
+	tokenErr := CheckOauth2Token(userToken)
+	if tokenErr != nil {
+		return nil, tokenErr
+	}
+	req, err := http.NewRequest("GET", "https://discord.com/api/v10/guilds/" + guildID + "/roles", nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bot "+ accessToken)
+	req.Header.Set("Authorization", "Bot "+accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fiber.NewError(resp.StatusCode, "Failed to fetch roles in guild")
+	}
+
+	var roles []Role
+	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
+		return nil, err
+	}
+
+	return roles, nil
+}
+
+
+func GetUserRolesInGuild(userToken, accessToken, guildID, userID string) ([]Role, error) {
+	tokenErr := CheckOauth2Token(userToken)
+	if tokenErr != nil {
+		return nil, tokenErr
+	}
+	req, err := http.NewRequest("GET", "https://discord.com/api/v10/guilds/" + guildID + "/members/" + userID, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bot " + accessToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

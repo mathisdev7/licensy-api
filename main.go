@@ -36,13 +36,36 @@ func main() {
 		AllowCredentials: true,
 	}))
 
+	app.Get("/api/users/@me", handlers.GetUserHandler(discord))
 	app.Get("/api/users/@me/guilds", handlers.GetUserGuildsHandler(discord))
+	app.Get("/api/guilds/:guildID/roles", func(c *fiber.Ctx) error {
+		guildID := c.Params("guildID")
+		accessToken := c.Get("Authorization")
+		if accessToken == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Missing Authorization header"})
+		}
+
+		roles, err := services.GetAllRolesInGuild(accessToken, botToken, guildID)
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"roles": roles})
+	})
 	app.Get("/api/guilds/:guildID/roles", func(c *fiber.Ctx) error {
 		guildID := c.Params("guildID")
 		userID := c.Query("userID")
 		roleID := c.Query("roleID")
+		accessToken := c.Get("Authorization")
 
-		isRoleGreaterThan, err := services.IsRoleGreaterThan(botToken, guildID, userID, roleID)
+		if userID == "" || roleID == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Missing userID or roleID query parameter"})
+		}
+
+		if accessToken == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Missing Authorization header"})
+		}
+
+		isRoleGreaterThan, err := services.IsRoleGreaterThan(accessToken, botToken, guildID, userID, roleID)
 		if err != nil {
 			return err
 		}
